@@ -15,35 +15,36 @@ Developed and maintained by **[Sakshi Pandey](https://github.com/blue007-arc)** 
 
 ## 🏗️ Architecture Overview
 
-```
-                                  ┌────────────────────────┐
-                                  │   Transaction Event    │ (REST API / Webhook)
-                                  └───────────┬────────────┘
-                                              ▼
-                             ┌──────────────────────────────────┐
-                             │    Temporal Durable Workflow     │
-                             │  (Auto-retry, state permanence)  │
-                             └──────┬───────────────┬───────────┘
-                                    │               │
-                     Vector Search  │               │ LLM Risk Evaluation
-                                    ▼               ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │    Couchbase    │    │   OpenAI GPT    │
-                       │  Vector Store   │    │  Reasoning Core │
-                       └────────┬────────┘    └────────┬────────┘
-                                │                      │
-                                └──────────┬───────────┘
-                                           ▼
-                                ┌──────────────────────┐
-                                │   Risk Scoring &     │
-                                │   Confidence Gate    │
-                                └──────────┬───────────┘
-                                           │
-             ┌─────────────────────────────┼─────────────────────────────┐
-             ▼                             ▼                             ▼
-    [High Confidence Pass]       [Suspicious Pattern]           [Confirmed Fraud]
-    Auto-Approve & Settle        Human-in-the-Loop Queue        Auto-Reject & Blacklist
-                                 (Streamlit Admin Portal)
+```mermaid
+graph TD
+    classDef inputNode fill:#1E293B,stroke:#38BDF8,stroke-width:2px,color:#F8FAFC;
+    classDef wfNode fill:#0F172A,stroke:#818CF8,stroke-width:2px,color:#F8FAFC;
+    classDef evalNode fill:#334155,stroke:#38BDF8,stroke-width:2px,color:#FFF;
+    classDef passNode fill:#064E3B,stroke:#34D399,stroke-width:2px,color:#FFF;
+    classDef queueNode fill:#7C2D12,stroke:#F97316,stroke-width:2px,color:#FFF;
+    classDef rejectNode fill:#881337,stroke:#F43F5E,stroke-width:2px,color:#FFF;
+
+    Tx["💳 Inbound Financial Transaction<br/><i>(FastAPI REST Ingestion)</i>"]:::inputNode
+
+    subgraph TemporalEngine ["⚡ Temporal Durable Execution Orchestrator"]
+        Tx --> Workflow["🔄 Durable Fraud Detection Workflow<br/><i>(Automatic retries, state persistence, sleep/signals)</i>"]:::wfNode
+    end
+
+    subgraph RiskIntelligence ["🔍 Hybrid Risk & Fraud Evaluation Core"]
+        Workflow --> Vector["🗄️ Couchbase FTS Vector Search<br/><i>(Pattern matching against known fraud vectors)</i>"]:::evalNode
+        Workflow --> Graph["🕸️ Graph Fraud Ring Detection<br/><i>(Structuring & velocity analysis)</i>"]:::evalNode
+        Workflow --> LLM["🤖 OpenAI GPT-4 Analysis<br/><i>(Semantic compliance & reasoning)</i>"]:::evalNode
+    end
+
+    Vector --> Gate["⚖️ Composite Confidence & Risk Scoring Gate"]
+    Graph --> Gate
+    LLM --> Gate
+
+    subgraph DecisionOutcomes ["🎯 Real-Time Decision Routing"]
+        Gate -- "Confidence ≥ 85%" --> Approved["✅ Auto-Approve & Settle"]:::passNode
+        Gate -- "Escalation Flag / >$50k" --> Review["⏸️ Human Review Queue<br/><i>(Compliance Streamlit Portal)</i>"]:::queueNode
+        Gate -- "Confirmed Fraud Pattern" --> Rejected["🚫 Block Transaction & Blacklist"]:::rejectNode
+    end
 ```
 
 ---
